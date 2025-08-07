@@ -1,39 +1,29 @@
 
-resource "konnect_gateway_service" "avm_test_service" {
-  enabled = true
-  name = "api-test"
-  connect_timeout = 60000
-  host = "api-test.staging.example.com"
-  port = 443
-  protocol = "https"
-  read_timeout = 60000
-  retries = 5
-  write_timeout = 70000
 
+# Configure a service and a route that we can use to test
+resource "konnect_gateway_service" "httpbin" {
+  name             = "HTTPBin"
+  protocol         = "https"
+  host             = "httpbin.org"
+  port             = 443
+  path             = "/"
   control_plane_id = konnect_gateway_control_plane.tfdemo.id
 }
 
-resource "konnect_gateway_route" "heartbeat" {
-  name = "v1-heartbeat"
-  https_redirect_status_code = 426
+resource "konnect_gateway_route" "anything" {
   methods = ["GET"]
-  path_handling = "v1"
-  paths = ["/api/v1/heartbeat"]
-  preserve_host = false
-  protocols = ["https"]
-  regex_priority = 0
-  request_buffering = true
-  response_buffering = true
+  name    = "Anything"
+  paths   = ["/anything"]
+
   strip_path = false
 
-  service = {
-    id = konnect_gateway_service.avm_test_service.id
-  }
-
   control_plane_id = konnect_gateway_control_plane.tfdemo.id
+  service = {
+    id = konnect_gateway_service.httpbin.id
+  }
 }
 
-resource "konnect_gateway_plugin_key_auth" "heartbeat_key_auth" {
+resource "konnect_gateway_plugin_key_auth" "key-auth" {
   enabled = true
   config = {
     hide_credentials = false
@@ -48,26 +38,30 @@ resource "konnect_gateway_plugin_key_auth" "heartbeat_key_auth" {
     key_names = ["apikey"]
     run_on_preflight = true
   }
-  protocols = ["grpc", "grpcs", "http", "https", "ws", "wss"]
+  protocols = ["grpc", "grpcs", "http", "https"]
 
   route = {
-    id = konnect_gateway_route.heartbeat.id
+    id = konnect_gateway_route.anything.id
   }
 
   control_plane_id = konnect_gateway_control_plane.tfdemo.id
 }
 
-resource "konnect_gateway_consumer" "machine_locke_test" {
-  username = "machine-locke-test"
-
+# Create a consumer and a basic auth credential for that consumer
+resource "konnect_gateway_consumer" "alice" {
+  username         = "alice"
+  custom_id        = "alice"
   control_plane_id = konnect_gateway_control_plane.tfdemo.id
 }
 
-resource "konnect_gateway_consumer" "realtime_avm_client" {
-  username = "realtime-avm-client"
-  custom_id = "client_id"
-
+# Then a consumer group, and add the consumer to a group
+resource "konnect_gateway_consumer_group" "gold" {
+  name             = "gold"
   control_plane_id = konnect_gateway_control_plane.tfdemo.id
 }
 
-
+resource "konnect_gateway_consumer_group_member" "ag" {
+  consumer_id       = konnect_gateway_consumer.alice.id
+  consumer_group_id = konnect_gateway_consumer_group.gold.id
+  control_plane_id  = konnect_gateway_control_plane.tfdemo.id
+}
